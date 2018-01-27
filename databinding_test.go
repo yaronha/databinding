@@ -18,7 +18,7 @@ func TestName(t *testing.T) {
 	}
 
 	some_config := map[string]datasources.DataSourceCfg{
-		"db0": {Class:"v3io", URL:"199.19.70.139:8081", Resource:"nuclio", BasePath:""},
+		"db0": {Class:"v3io", URL:"", Resource:"nuclio", BasePath:""},
 	}
 
 	dc := NewDataContext(logger, some_config)

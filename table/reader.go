@@ -3,6 +3,7 @@ package table
 import (
 	"github.com/yaronha/databinding/requests"
 	"github.com/yaronha/databinding/datactx"
+	"fmt"
 )
 
 
@@ -15,6 +16,7 @@ func NewReader(dc *datactx.DataContextCfg, path string, keys []interface{}) *Tab
 type TableReader struct {
 	dc         *datactx.DataContextCfg
 	req        *requests.ReadRequest
+	executed   bool
 	path       string
 }
 
@@ -47,7 +49,11 @@ func (tr *TableReader) Partition(part, inParts int) *TableReader {
 
 func (tr *TableReader) Load() (requests.ReadResponse, error) {
 
-	// Find the right data source and full path
+	if tr.executed {
+		return nil, fmt.Errorf("Request was already executed")
+	}
+	tr.executed = true
+
 	// TODO: verify that the data source support Table & Load methods
 	ds, fullpath, err := tr.dc.GetSource(tr.path)
 	if err != nil {

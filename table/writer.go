@@ -16,6 +16,7 @@ type TableWriter struct {
 	dc         *datactx.DataContextCfg
 	req        *requests.WriteRequest
 	path       string
+	executed   bool
 }
 
 func (tw *TableWriter) Format(format string) *TableWriter {
@@ -45,7 +46,12 @@ func (tw *TableWriter) Condition(cond string) *TableWriter {
 
 func (tw *TableWriter) DoAsync() (requests.ExecResponse, error) {
 
-	// Find the right data source and full path
+	if tw.executed {
+		return nil, fmt.Errorf("Request was already executed")
+	}
+	tw.executed = true
+
+
 	// TODO: verify that the data source support Table & Write methods
 	ds, fullpath, err := tw.dc.GetSource(tw.path)
 	if err != nil {
