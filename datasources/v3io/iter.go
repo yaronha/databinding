@@ -3,9 +3,10 @@ package v3io
 import (
 	"github.com/v3io/v3io-go-http"
 	"github.com/pkg/errors"
+	"github.com/yaronha/databinding/requests"
 )
 
-type ItemsCursor struct {
+type V3ioItemsCursor struct {
 	nextMarker     string
 	moreItemsExist bool
 	itemIndex      int
@@ -15,8 +16,8 @@ type ItemsCursor struct {
 	container      *v3io.Container
 }
 
-func newItemsCursor(container *v3io.Container, input *v3io.GetItemsInput, response *v3io.Response) *ItemsCursor {
-	newItemsCursor := &ItemsCursor{
+func newItemsCursor(container *v3io.Container, input *v3io.GetItemsInput, response *v3io.Response) requests.ItemsCursor {
+	newItemsCursor := &V3ioItemsCursor{
 		container: container,
 		input:     input,
 	}
@@ -27,21 +28,21 @@ func newItemsCursor(container *v3io.Container, input *v3io.GetItemsInput, respon
 }
 
 // release a cursor and its underlying resources
-func (ic *ItemsCursor) Release() {
+func (ic *V3ioItemsCursor) Release() {
 	ic.response.Release()
 }
 
 // get the next matching item. this may potentially block as this lazy loads items from the collection
-func (ic *ItemsCursor) Next() (*v3io.Item, error) {
+func (ic *V3ioItemsCursor) Next() (*requests.Item, error) {
 
 	// are there any more items left in the previous response we received?
 	if ic.itemIndex < len(ic.items) {
-		item := &ic.items[ic.itemIndex]
+		item := requests.Item(ic.items[ic.itemIndex])
 
 		// next time we'll give next item
 		ic.itemIndex++
 
-		return item, nil
+		return &item, nil
 	}
 
 	// are there any more items up stream?
@@ -69,8 +70,8 @@ func (ic *ItemsCursor) Next() (*v3io.Item, error) {
 }
 
 // gets all items
-func (ic *ItemsCursor) All() ([]*v3io.Item, error) {
-	items := []*v3io.Item{}
+func (ic *V3ioItemsCursor) GetAll() ([]interface{}, error) {
+	items := []interface{}{}
 
 	for {
 		item, err := ic.Next()
@@ -88,7 +89,7 @@ func (ic *ItemsCursor) All() ([]*v3io.Item, error) {
 	return items, nil
 }
 
-func (ic *ItemsCursor) setResponse(response *v3io.Response) {
+func (ic *V3ioItemsCursor) setResponse(response *v3io.Response) {
 	ic.response = response
 
 	getItemsOutput := response.Output.(*v3io.GetItemsOutput)

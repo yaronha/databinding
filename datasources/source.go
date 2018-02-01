@@ -1,7 +1,7 @@
 package datasources
 
 import (
-	"github.com/nuclio/nuclio/pkg/registry"
+	"github.com/yaronha/databinding/datasources/registry"
 	"github.com/yaronha/databinding/requests"
 	"github.com/nuclio/logger"
 )
