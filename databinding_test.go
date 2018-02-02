@@ -27,9 +27,10 @@ func TestName(t *testing.T) {
 
 	dc := NewDataContext(logger, some_config)
 
-	//req, _ := dc.Table.Write("db0://cars").ToKeys("3").WithExpression("model='%s'", "Nisan").Do()
-	//fmt.Println(req)
-	rows, _ := dc.Table.Read("db0://cars").Load()
+	req, _ := dc.Table.Write("db0://cars").ToKeys("3").WithExpression("model='%s'", "Kuku").Do()
+	fmt.Println(req)
+	//rows, _ := dc.Table.Read("db0://cars").Load()
+	rows, _ := dc.Table.Read("db0://cars", 1,3).Load()
 	for rows.Next() {
 		logger.InfoWith("row", "cols", rows.Columns())
 	}

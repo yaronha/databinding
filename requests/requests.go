@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"fmt"
+	"reflect"
 )
 
 type Item map[string]interface{}
@@ -45,10 +46,7 @@ type ReadResponse interface {
 type AbstractReadResponse struct {
 	Logger       logger.Logger
 	Req          *ReadRequest
-	Data         []*Item
-	Cursor       int
 	Loading      bool
-	RespMap      map[uint64]string
 	ItemsCurs    ItemsCursor
 	Err          error
 
@@ -65,6 +63,12 @@ func (rs *AbstractReadResponse) Close() error {
 
 
 func (rs *AbstractReadResponse) Next() bool {
+
+	next := rs.ItemsCurs.Next()
+	rs.Err = rs.ItemsCurs.Error()
+	return next
+
+/*
 
 	if rs.Err !=nil {
 		return false
@@ -101,15 +105,11 @@ func (rs *AbstractReadResponse) Next() bool {
 	rs.Cursor +=1
 
 	return true
+*/
 }
 
 func (rs *AbstractReadResponse) Columns() *Item {
-	if rs.Cursor == 0 {
-		return nil
-	}
-	row := &Item{}
-	row = rs.Data[rs.Cursor-1]
-	return row
+	return rs.ItemsCurs.GetItem()
 }
 
 func (rs *AbstractReadResponse) Col(name string) TableField {
@@ -144,8 +144,10 @@ func (rs *AbstractReadResponse) Scan(fields string, dest ...interface{}) error {
 
 type ItemsCursor interface {
 	Release()
-	Next() (*Item, error)
-	GetAll() ([]interface{}, error)
+	Next() bool
+	Error() error
+	GetItem() *Item
+	//GetAll() ([]interface{}, error)
 }
 
 
@@ -166,14 +168,14 @@ func (f *AbstractTableField) AsInt() int {
 }
 
 func (f *AbstractTableField) AsStr() string {
-	return AsString((*f.Resp.Columns())[f.Name])
+	return asString((*f.Resp.Columns())[f.Name])
 }
 
 func (f *AbstractTableField) AsBytes() []byte {
 	if (*f.Resp.Columns())[f.Name] == nil {
 		return nil
 	}
-	return (*f.Resp.Columns())[f.Name].([]byte)
+	return asBytes((*f.Resp.Columns())[f.Name])
 }
 
 
@@ -195,7 +197,51 @@ func AsString(val interface{}) string {
 }
 
 
+func asString(src interface{}) string {
+	switch v := src.(type) {
+	case string:
+		return v
+	case []byte:
+		return string(v)
+	case []uint64:
+		list := []string{}
+		for _, val := range src.([]uint64) {
+			list = append(list, strconv.FormatUint(val, 10))
+		}
+		return strings.Join(list, ",")
+	case []float64:
+		list := []string{}
+		for _, val := range src.([]float64) {
+			list = append(list, strconv.FormatFloat(val, 'g', -1, 64))
+		}
+		return strings.Join(list, ",")
+	}
+	rv := reflect.ValueOf(src)
+	switch rv.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return strconv.FormatInt(rv.Int(), 10)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return strconv.FormatUint(rv.Uint(), 10)
+	case reflect.Float64:
+		return strconv.FormatFloat(rv.Float(), 'g', -1, 64)
+	case reflect.Float32:
+		return strconv.FormatFloat(rv.Float(), 'g', -1, 32)
+	case reflect.Bool:
+		return strconv.FormatBool(rv.Bool())
+	}
+	return fmt.Sprintf("%v", src)
+}
 
+func asBytes(src interface{}) []byte {
+	switch v := src.(type) {
+	case []byte:
+		return v
+	case string:
+		return []byte(v)
+	}
+
+	return []byte(asString(src))
+}
 
 
 

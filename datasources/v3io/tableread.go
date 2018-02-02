@@ -34,21 +34,24 @@ func (v *v3ioDS) TableReadReq(req *requests.ReadRequest) (requests.ReadResponse,
 		return &readResp, err
 	}
 
-	readResp.respChan = make(chan *v3io.Response, len(keys))
-	readResp.RespMap  = map[uint64]string{}
+	respChan := make(chan *v3io.Response, len(keys))
+	respMap  := map[uint64]string{}
 	readResp.Logger = v.logger
 
 	for _, key := range keys {
 		resp, err := v.container.GetItem(&v3io.GetItemInput{
-			Path: req.Fullpath +"/" + key, AttributeNames: req.Attributes}, readResp.respChan)
+			Path: req.Fullpath +"/" + key, AttributeNames: req.Attributes}, respChan)
 		if err != nil {
 			readResp.Err = err
 			v.logger.ErrorWith("failed frames LoadAsync by key","err",err, "path", req.Fullpath +"/" + key)
+			// TODO: release all chan resp...
 		} else {
-			readResp.RespMap[resp.ID] = key
+			respMap[resp.ID] = key
 		}
 	}
 
+	ic := newByKeyCursor(v.container, respMap, respChan)
+	readResp.ItemsCurs = ic
 	return &readResp, nil
 }
 
@@ -89,30 +92,6 @@ type v3ioReadResponse struct {
 	respChan     chan *v3io.Response
 }
 
-func (rs *v3ioReadResponse) getDataResp(num int) error {
-	submitted := len(rs.RespMap)
-	var err error
-	if num > submitted {
-		num = submitted
-	}
 
-	for numResponses := 0; numResponses < num; numResponses++ {
-		response := <- rs.respChan
 
-		key := rs.RespMap[response.ID]
-		if response.Error != nil {
-			rs.Err = response.Error
-			rs.Logger.ErrorWith("failed frames get resp","err",rs.Err, "path", rs.Req.Fullpath+"/"+key)
-			err = rs.Err
-		} else {
-			item := requests.Item(response.Output.(*v3io.GetItemOutput).Item)
-			item["__name"] = key
-			rs.Data = append(rs.Data, &item)
-
-		}
-		delete(rs.RespMap, response.ID)
-	}
-
-	return err
-}
 
