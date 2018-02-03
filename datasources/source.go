@@ -4,15 +4,36 @@ import (
 	"github.com/yaronha/databinding/datasources/registry"
 	"github.com/yaronha/databinding/requests"
 	"github.com/nuclio/logger"
+	"fmt"
 )
 
 
 type DataSource interface {
 	GetConfig()  *DataSourceCfg
+	GetRaw() (interface{}, error)
 	TableReadReq(req *requests.ReadRequest) (requests.ReadResponse, error)
 	TableWriteReq(req *requests.WriteRequest) (requests.ExecResponse, error)
 
 }
+
+type AbstractDataSource struct {
+	Capabilities  int
+	Config        *DataSourceCfg
+}
+
+func (ds *AbstractDataSource) GetRaw() (interface{}, error) {
+	return nil, fmt.Errorf("Datasource does not support raw interface")
+}
+
+func (ds *AbstractDataSource) TableReadReq(req *requests.ReadRequest) (requests.ReadResponse, error) {
+	return nil, fmt.Errorf("Datasource does not support TableRead interface")
+}
+
+func (ds *AbstractDataSource) TableWriteReq(req *requests.WriteRequest) (requests.ExecResponse, error) {
+	return nil, fmt.Errorf("Datasource does not support TableWrite interface")
+}
+
+
 
 type DataSourceCfg struct {
 	Class     string            `json:"class"`

@@ -11,7 +11,13 @@ type DataContextCfg struct {
 	Logger       logger.Logger
 	Sources      map[string]datasources.DataSource
 	SecretStore  SecretProvider
+	WaitGroups   map[int][]DoResult
 }
+
+type DoResult interface {
+	Result() (interface{}, error)
+}
+
 
 type SecretProvider interface {
 	GetSecrets(name, requieredBy string) map[string][]byte

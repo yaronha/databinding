@@ -9,24 +9,17 @@ import (
 
 func (v *v3ioDS) TableReadReq(req *requests.ReadRequest) (requests.ReadResponse, error) {
 
-	// TODO: block more Loads, do pre-fetch, add GetItems
-
-	readResp := v3ioReadResponse{}
+	readResp := requests.AbstractReadResponse{}
 	if len(req.Attributes) == 0 {
 		req.Attributes = append(req.Attributes, "*")
 	}
 	readResp.Req = req
-	keys := getKeys(req.Keys)
+	keys := toStringKeys(req.Keys)
 	v.logger.DebugWith("got read request", "req", req, "keys", keys)
 
-
 	if len(req.Keys)==0 {
-		// add "/" if missing
-		if req.Fullpath != "" && !strings.HasSuffix(req.Fullpath, "/") {
-			req.Fullpath = req.Fullpath +"/"
-		}
-
-		err := v.loadItems(&req.Fullpath, &req.Filter, &req.Attributes, &readResp)
+		// use GetItems query
+		err := v.loadItems(req, &readResp)
 		if err != nil {
 			v.logger.ErrorWith("failed frames LoadAsync items","err",err, "path", req.Fullpath )
 		}
@@ -34,6 +27,7 @@ func (v *v3ioDS) TableReadReq(req *requests.ReadRequest) (requests.ReadResponse,
 		return &readResp, err
 	}
 
+	// Use multiple async GetItem calls, one per key
 	respChan := make(chan *v3io.Response, len(keys))
 	respMap  := map[uint64]string{}
 	readResp.Logger = v.logger
@@ -55,7 +49,7 @@ func (v *v3ioDS) TableReadReq(req *requests.ReadRequest) (requests.ReadResponse,
 	return &readResp, nil
 }
 
-func getKeys(keys []interface{}) []string {
+func toStringKeys(keys []interface{}) []string {
 	if len(keys) == 0 {
 		return []string{}
 	}
@@ -73,9 +67,15 @@ func getKeys(keys []interface{}) []string {
 	return newKeys
 }
 
-func (v *v3ioDS) loadItems(fullpath, filter *string, attrs *[]string, readResp *v3ioReadResponse) error {
+func (v *v3ioDS) loadItems(req *requests.ReadRequest, readResp *requests.AbstractReadResponse) error {
 
-	input := v3io.GetItemsInput{Path:*fullpath, AttributeNames:*attrs, Filter:*filter}
+	// add "/" if missing
+	fullpath := req.Fullpath
+	if req.Fullpath != "" && !strings.HasSuffix(req.Fullpath, "/") {
+		fullpath = req.Fullpath +"/"
+	}
+
+	input := v3io.GetItemsInput{Path:fullpath, AttributeNames:req.Attributes, Filter:req.Filter}
 
 	response, err := v.container.Sync.GetItems(&input)
 	if err != nil {
@@ -83,13 +83,6 @@ func (v *v3ioDS) loadItems(fullpath, filter *string, attrs *[]string, readResp *
 	}
 	readResp.ItemsCurs = newItemsCursor(v.container, &input, response)
 	return nil
-}
-
-
-
-type v3ioReadResponse struct {
-	requests.AbstractReadResponse
-	respChan     chan *v3io.Response
 }
 
 

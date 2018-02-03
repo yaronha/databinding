@@ -18,11 +18,7 @@ func (v *v3ioDS) TableWriteReq(req *requests.WriteRequest) (requests.ExecRespons
 
 	var err error
 	var resp *v3io.Request
-	if req.WaitGroup == 0 {
-		newResp.respChan = make(chan *v3io.Response, 1)
-	} else {
-
-	}
+	newResp.respChan = make(chan *v3io.Response, 1)
 
 	// TODO: multiple keys & to string conversion
 	fullpath := req.Fullpath + "/" + req.Keys[0].(string)

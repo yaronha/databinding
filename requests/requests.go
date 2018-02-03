@@ -17,7 +17,7 @@ type ReadRequest struct {
 	Attributes     []string
 	Filter         string
 	Format         string
-	SqlQuery       string
+	Query          string
 	NumPartitions  int
 	PartitionIdx   int
 	Schema         interface{}   // TODO:
@@ -39,14 +39,13 @@ type ReadResponse interface {
 	// Every call to Scan, even the first one, must be preceded by a call to Next.
 	Next() bool
 	Scan(fields string, dest ...interface{}) error
-	Columns() *Item
-	Col(name string) TableField
+	Fields() *map[string]interface{}
+	Field(name string) TableFieldTypes
 }
 
 type AbstractReadResponse struct {
 	Logger       logger.Logger
 	Req          *ReadRequest
-	Loading      bool
 	ItemsCurs    ItemsCursor
 	Err          error
 
@@ -67,73 +66,48 @@ func (rs *AbstractReadResponse) Next() bool {
 	next := rs.ItemsCurs.Next()
 	rs.Err = rs.ItemsCurs.Error()
 	return next
-
-/*
-
-	if rs.Err !=nil {
-		return false
-	}
-
-	// GetItems query case, 0-n results using iterator
-	if len(rs.Req.Keys)==0 {
-		// TODO: do a better imp
-		item, err := rs.ItemsCurs.Next()
-		if err != nil {
-			rs.Err = err
-			return false
-		}
-
-		// no more items (EOF)
-		if item == nil {
-			return false
-		}
-
-		rs.Data = append(rs.Data, item)
-		rs.Cursor +=1
-		return true
-	}
-
-	if len(rs.Data) <= rs.Cursor || len(rs.RespMap)>0 {
-		//rs.getDataResp(1)
-		// TODO: pre-fetch
-	}
-
-	if rs.Data == nil || len(rs.Data) <= rs.Cursor {
-		return false
-	}
-
-	rs.Cursor +=1
-
-	return true
-*/
 }
 
-func (rs *AbstractReadResponse) Columns() *Item {
-	return rs.ItemsCurs.GetItem()
+func (rs *AbstractReadResponse) Fields() *map[string]interface{} {
+	return rs.ItemsCurs.GetFields()
 }
 
-func (rs *AbstractReadResponse) Col(name string) TableField {
-	return &AbstractTableField{Resp:rs, Name:name}
+func (rs *AbstractReadResponse) Field(name string) TableFieldTypes {
+	return rs.ItemsCurs.GetField(name)
 }
 
 func (rs *AbstractReadResponse) Scan(fields string, dest ...interface{}) error {
-	list := strings.Split(fields, ",")
+	list := []string{}
+
+	// fields can be nil/"", means return the fields based on the query order
+	if fields != "" {
+		list := strings.Split(fields, ",")
+		if len(list) != len(dest) {
+			return fmt.Errorf("number of fields (comma seperated) must match number of pointers)")
+		}
+	}
+
+	return rs.ItemsCurs.Scan(list, dest)
+}
+
+func (rs *AbstractReadResponse) Scannn(fields string, dest ...interface{}) error {
+	list := []string{}
 	if len(list) != len(dest) {
 		return fmt.Errorf("number of fields (comma seperated) must match number of pointers)")
 	}
 	for idx, name := range list {
-		field, ok := (*rs.Columns())[name]
+		field, ok := (*rs.Fields())[name]
 		if !ok {
 			field = ""
 		}
 		p := dest[idx]
 		switch p.(type) {
-		//		case *[]byte:
-		//			*p.(*[]byte) = field.([]byte)
+		case *[]byte:
+			*p.(*[]byte) = asBytes(field)
 		case *string:
-			*p.(*string) = AsString(field)
+			*p.(*string) = asString(field)
 		case *int:
-			*p.(*int) = AsInt(field)
+			*p.(*int) = asInt(field)
 
 		}
 
@@ -146,41 +120,60 @@ type ItemsCursor interface {
 	Release()
 	Next() bool
 	Error() error
-	GetItem() *Item
-	//GetAll() ([]interface{}, error)
+	Scan(fields []string, dest ...interface{}) error
+	GetFields() *map[string]interface{}
+	GetField(name string) TableFieldTypes
 }
 
 
 
-type TableField interface {
+type TableFieldTypes interface {
 	AsInt() int
 	AsStr() string
 	AsBytes() []byte
+	AsInterface() interface{}
+	AsInt64Array() []uint64
+	AsFloat64Array() []float64
 }
 
 type AbstractTableField struct {
-	Resp   ReadResponse
-	Name   string
+	Val   interface{}
 }
 
 func (f *AbstractTableField) AsInt() int {
-	return AsInt((*f.Resp.Columns())[f.Name])
+	return asInt(f.Val)
 }
 
 func (f *AbstractTableField) AsStr() string {
-	return asString((*f.Resp.Columns())[f.Name])
+	return asString(f.Val)
 }
 
 func (f *AbstractTableField) AsBytes() []byte {
-	if (*f.Resp.Columns())[f.Name] == nil {
+	if f.Val == nil {
 		return nil
 	}
-	return asBytes((*f.Resp.Columns())[f.Name])
+	return asBytes(f.Val)
+}
+
+func (f *AbstractTableField) AsInterface() interface{} {
+	return f.Val
+}
+
+func (f *AbstractTableField) AsInt64Array() []uint64 {
+	val, ok := f.Val.([]uint64)
+	if ok { return val }
+	return []uint64{}
+}
+
+func (f *AbstractTableField) AsFloat64Array() []float64 {
+	val, ok := f.Val.([]float64)
+	if ok { return val }
+	return []float64{}
 }
 
 
 
-func AsInt(num interface{}) int {
+func asInt(num interface{}) int {
 	val, ok := num.(int)
 	if ok { return val }
 	return 0

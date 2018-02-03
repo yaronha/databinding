@@ -35,8 +35,8 @@ func (tr *TableReader) Where(filter string) *TableReader {
 	return tr
 }
 
-func (tr *TableReader) Sql(sql string, vars ...interface{}) *TableReader {
-	tr.req.SqlQuery = sql
+func (tr *TableReader) Query(sql string, vars ...interface{}) *TableReader {
+	tr.req.Query = sql
 	// TODO: handle SQL params (interfaces)
 	return tr
 }

@@ -4,14 +4,73 @@ import (
 	"github.com/v3io/v3io-go-http"
 	"github.com/pkg/errors"
 	"github.com/yaronha/databinding/requests"
+	"encoding/binary"
+	"math"
 )
 
+type BaseV3ioItemsCursor struct {
+	currentItem    *map[string]interface{}
+	lastError      error
+}
+
+func (ic *BaseV3ioItemsCursor) Error() error {
+	return ic.lastError
+}
+
+func (ic *BaseV3ioItemsCursor) GetFields() *map[string]interface{} {
+	return ic.currentItem
+}
+
+func (ic *BaseV3ioItemsCursor) GetField(name string) requests.TableFieldTypes {
+	f := (*ic.currentItem)[name]
+
+	return &V3ioFieldTypes{AbstractTableField:requests.AbstractTableField{f}}
+}
+
+func (ic *BaseV3ioItemsCursor) Scan(fields []string, dest ...interface{}) error {
+	return nil
+}
+
+type V3ioFieldTypes struct {
+	requests.AbstractTableField
+
+}
+
+func (f *V3ioFieldTypes) AsInt64Array() []uint64 {
+	var array []uint64
+	switch f.Val.(type) {
+	case []byte:
+		bytes := f.Val.([]byte)
+		for i :=16 ; i+8 <= len(bytes); i += 8 {
+			val := binary.LittleEndian.Uint64(bytes[i:i+8])
+			array = append(array, val)
+		}
+	}
+	return array
+}
+
+func (f *V3ioFieldTypes) AsFloat64Array() []float64 {
+	var array []float64
+
+	switch f.Val.(type) {
+	case []byte:
+		bytes := f.Val.([]byte)
+		for i :=16 ; i+8 <= len(bytes); i += 8 {
+			val := binary.LittleEndian.Uint64(bytes[i:i+8])
+			float := math.Float64frombits(val)
+			array = append(array, float)
+		}
+	}
+	return array
+}
+
+
+
 type V3ioItemsCursor struct {
+	BaseV3ioItemsCursor
 	nextMarker     string
 	moreItemsExist bool
 	itemIndex      int
-	currentItem    *requests.Item
-	lastError      error
 	items          []v3io.Item
 	response       *v3io.Response
 	input          *v3io.GetItemsInput
@@ -39,7 +98,7 @@ func (ic *V3ioItemsCursor) Next() bool {
 
 	// are there any more items left in the previous response we received?
 	if ic.itemIndex < len(ic.items) {
-		item := requests.Item(ic.items[ic.itemIndex])
+		item := map[string]interface{}(ic.items[ic.itemIndex])
 		ic.currentItem = &item
 
 		// next time we'll give next item
@@ -76,35 +135,6 @@ func (ic *V3ioItemsCursor) Next() bool {
 	return ic.Next()
 }
 
-func (ic *V3ioItemsCursor) Error() error {
-	return ic.lastError
-}
-
-func (ic *V3ioItemsCursor) GetItem() *requests.Item {
-	return ic.currentItem
-}
-
-/*
-// gets all items
-func (ic *V3ioItemsCursor) GetAll() ([]interface{}, error) {
-	items := []interface{}{}
-
-	for {
-		item, err := ic.Next()
-		if err != nil {
-			return nil, errors.Wrap(err, "Failed to get next item")
-		}
-
-		if item == nil {
-			break
-		}
-
-		items = append(items, item)
-	}
-
-	return items, nil
-}
-*/
 
 func (ic *V3ioItemsCursor) setResponse(response *v3io.Response) {
 	ic.response = response
@@ -119,11 +149,9 @@ func (ic *V3ioItemsCursor) setResponse(response *v3io.Response) {
 
 
 type V3ioByKeyCursor struct {
+	BaseV3ioItemsCursor
 	moreItemsExist bool
 	itemIndex      int
-	currentItem    *requests.Item
-	lastError      error
-	items          []v3io.Item
 	respMap        map[uint64]string
 	respChan       chan *v3io.Response
 	container      *v3io.Container
@@ -146,7 +174,6 @@ func (ic *V3ioByKeyCursor) Next() bool {
 		return false
 	}
 
-
 	response := <- ic.respChan
 
 	key := ic.respMap[response.ID]
@@ -156,23 +183,17 @@ func (ic *V3ioByKeyCursor) Next() bool {
 		return false
 	}
 
-	item := requests.Item(response.Output.(*v3io.GetItemOutput).Item)
+	item := map[string]interface{}(response.Output.(*v3io.GetItemOutput).Item)
 	item["__name"] = key
 	ic.currentItem = &item
 	ic.lastError = nil
 	delete(ic.respMap, response.ID)
+	response.Release()
+
 	return true
 }
 
 func (ic *V3ioByKeyCursor) Release() {
 
-}
-
-func (ic *V3ioByKeyCursor) Error() error {
-	return ic.lastError
-}
-
-func (ic *V3ioByKeyCursor) GetItem() *requests.Item {
-	return ic.currentItem
 }
 

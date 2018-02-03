@@ -44,7 +44,7 @@ func (tw *TableWriter) Condition(cond string) *TableWriter {
 	return tw
 }
 
-func (tw *TableWriter) DoAsync() (requests.ExecResponse, error) {
+func (tw *TableWriter) DoAsync(wg int) (requests.ExecResponse, error) {
 
 	if tw.executed {
 		return nil, fmt.Errorf("Request was already executed")
@@ -59,13 +59,18 @@ func (tw *TableWriter) DoAsync() (requests.ExecResponse, error) {
 	}
 
 	tw.req.Fullpath = fullpath
+	tw.req.WaitGroup = wg
 	tw.dc.Logger.DebugWith("Table Write", "req", tw.req, "ds", ds.GetConfig())
-	return ds.TableWriteReq(tw.req)
+	resp, err := ds.TableWriteReq(tw.req)
+	if wg !=0 && err == nil {
+		tw.dc.WaitGroups[wg] = append(tw.dc.WaitGroups[wg], resp)
+	}
+	return resp, err
 }
 
 func (tw *TableWriter) Do() (interface{}, error) {
 
-	resp, err := tw.DoAsync()
+	resp, err := tw.DoAsync(0)
 	if err != nil {
 		return nil, err
 	}
