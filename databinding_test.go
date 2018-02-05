@@ -2,10 +2,11 @@ package databinding
 
 import (
 	"testing"
-	"github.com/nuclio/zap"
 	"fmt"
 	"github.com/yaronha/databinding/datasources"
 	"time"
+	"github.com/v3io/v3io-go-http"
+	"encoding/json"
 )
 
 
@@ -13,31 +14,37 @@ import (
 func TestName(t *testing.T) {
 
 
-	logger, err := nucliozap.NewNuclioZapCmd("v3test", nucliozap.InfoLevel)
-	if err != nil {
-		t.Fatal("Failed to create logger", err )
-	}
-
 	some_config := map[string]datasources.DataSourceCfg{
 		"db0": {Class:"v3io", URL:"<TBD>", Resource:"nuclio", BasePath:""},
 	}
 
-	dc := NewDataContext(logger, some_config)
+	dc, _ := NewDataContext(some_config, false)
 
-	dc.Table.Write("db0://cars").ToKeys("1").WithExpression("model='%s'", "AB").DoAsync(0)
-	dc.Table.Write("db0://cars").ToKeys("3").WithExpression("model='%s'", "CD").DoAsync(0)
-	resp, err := dc.Wait(0)
-	logger.InfoWith("resp array", "resp", resp, "err", err)
-	//rows, _ := dc.Table.Read("db0://cars").Load()
-	rows, _ := dc.Table.Read("db0://cars", ).Load()
+	container, err := dc.Raw("db0")
+	fmt.Println(err)
+	expr := "model='111'"
+	err = container.(*v3io.Container).Sync.UpdateItem(&v3io.UpdateItemInput{
+		Path: "cars/2", Expression: &expr })
+	fmt.Println(err)
+
+	dc.Table("db0").Write("cars").ToKeys("1").WithExpression("model='%s'", "xx").DoAsync(1)
+	dc.Table("db0").Write("cars").ToKeys("3").WithExpression("model='%s'", "yy").DoAsync(1)
+	resp, err := dc.Wait(1)
+	dc.GetLogger().InfoWith("resp array", "resp", resp, "err", err)
+	rows, _ := dc.Table("db0").Read("cars", ).Load()
 	for rows.Next() {
-		logger.InfoWith("row", "cols", rows.Fields())
+		dc.GetLogger().InfoWith("row", "cols", rows.Fields())
 	}
 
 
 }
 
+type machineStats struct {
+	Name string
+	Stats  map[string][]float64
+}
 
+var sensorNames = []string {"volt", "rotate", "pressure", "vibration"}
 
 func Test2(t *testing.T) {
 
@@ -46,26 +53,28 @@ func Test2(t *testing.T) {
 	//os.Exit(0)
 
 
-	logger, err := nucliozap.NewNuclioZapCmd("v3test", nucliozap.WarnLevel)
-	if err != nil {
-		t.Fatal("Failed to create logger", err )
-	}
 
 	some_config := map[string]datasources.DataSourceCfg{
 		"db0": {Class:"v3io", URL:"<TBD>", Resource:"azureml", BasePath:""},
 	}
 
-	dc := NewDataContext(logger, some_config)
+	dc, _ := NewDataContext(some_config, true)
 
-	dc.Table.Write("db0://dy-machines").ToKeys("3").WithExpression("model='%s'", "Nisan").DoAsync(1)
-	dc.Wait(1)
-	rows, _ := dc.Table.Read("db0://dy-machines/2018-01-29").Load()
+	//dc.Table.Write("db0://dy-machines").ToKeys("3").WithExpression("model='%s'", "Nisan").DoAsync(1)
+	//dc.Wait(1)
+	resp := []machineStats{}
+	rows, _ := dc.Table("db0").Read("dy-machines/2018-02-03").Load()
 	for rows.Next() {
-		//rot := []byte{}
-		//var id, val int
-		//rows.Scan("machine_id,val,rotation", &id, &val, &rot)
-		fmt.Println("rot:", rows.Field("rotate_samples").AsFloat64Array())
+		mech := machineStats{}
+		mech.Name = rows.Field("__name").AsStr()
+		mech.Stats = map[string][]float64{}
+		for _, name := range sensorNames {
+			mech.Stats[name] = rows.Field(name + "_samples").AsFloat64Array()
+		}
+		resp = append(resp, mech)
 	}
+	body, _ := json.Marshal(resp)
+	fmt.Println(string(body))
 
 }
 

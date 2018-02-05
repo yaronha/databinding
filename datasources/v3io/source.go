@@ -5,6 +5,7 @@ import (
 	"github.com/yaronha/databinding/datasources"
 	"github.com/pkg/errors"
 	"github.com/nuclio/logger"
+	"fmt"
 )
 
 const MAX_REQ_CHANNEL  = 100
@@ -12,6 +13,14 @@ const MAX_REQ_CHANNEL  = 100
 func NewV3ioDataSource(logger logger.Logger, cfg *datasources.DataSourceCfg) (datasources.DataSource, error) {
 	newV3IOds := v3ioDS{logger:logger, AbstractDataSource: datasources.AbstractDataSource{Config:cfg}}
 	var err error
+	if cfg.FromContext != nil {
+		var ok bool
+		newV3IOds.container, ok = cfg.FromContext.(*v3io.Container)
+		if !ok {
+			return &newV3IOds, fmt.Errorf("data context is not a valid v3io container")
+		}
+		return &newV3IOds, nil
+	}
 	newV3IOds.container, err = createContainer(logger, cfg.URL, cfg.Resource)
 	if err !=nil {
 		return &newV3IOds, err
@@ -53,6 +62,3 @@ func createContainer(logger logger.Logger, addr, cont string) (*v3io.Container, 
 	return container, nil
 }
 
-func (v *v3ioDS) GetConfig() *datasources.DataSourceCfg {
-	return v.Config
-}

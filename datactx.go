@@ -8,29 +8,79 @@ import (
 	_ "github.com/yaronha/databinding/datasources/v3io"
 	"github.com/nuclio/logger"
 	"fmt"
+	"github.com/nuclio/nuclio-sdk-go"
+	"github.com/nuclio/zap"
 )
 
+// Create a new data context from configuration
+func NewDataContext(config map[string]datasources.DataSourceCfg, verbose bool) (*DataContext, error) {
 
-func NewDataContext(logger logger.Logger, config map[string]datasources.DataSourceCfg) *DataContext {
+	var logLevel nucliozap.Level
+	if verbose {
+		logLevel = nucliozap.DebugLevel
+	} else {
+		logLevel = nucliozap.WarnLevel
+	}
+	logger, err := nucliozap.NewNuclioZapCmd("v3test", logLevel)
+	if err != nil {
+		return nil, err
+	}
+
+
 	dc := DataContext{}
 	dc.cfg = &datactx.DataContextCfg{Logger: logger.GetChild("datactx")}
 	dc.cfg.Sources = createDataSources(dc.cfg.Logger, config)
 	dc.cfg.WaitGroups = map[int][]datactx.DoResult{}
 	logger.Debug(dc.cfg.Sources)
 
-	dc.Table = table.NewTableContext(dc.cfg)
+	//dc.Table = table.NewTableContext(dc.cfg)
+	return &dc, nil
+}
+
+// create a new data context from nuclio data bindings
+func NewFromContext(context *nuclio.Context) *DataContext {
+	dc := DataContext{}
+	dc.cfg = &datactx.DataContextCfg{Logger: context.Logger.GetChild("datactx")}
+	dsMap := map[string]datasources.DataSource{}
+
+	for name, datasource := range context.DataBinding {
+		dscfg := datasources.DataSourceCfg{}
+		dscfg.FromContext = datasource
+		ds, _ := datasources.RegistrySingleton.NewDataSource(dc.cfg.Logger,"v3io",name,
+			&dscfg)
+		dsMap[name] = ds
+	}
+
+	dc.cfg.Sources = dsMap
+	dc.cfg.WaitGroups = map[int][]datactx.DoResult{}
+	context.Logger.Debug(dc.cfg.Sources)
+
+	//dc.Table = table.NewTableContext(dc.cfg)
 	return &dc
 }
 
 
 type DataContext struct {
 	cfg    *datactx.DataContextCfg
-	Table  *table.TableContext
+	//Table  *table.TableContext
 }
 
 type AsyncResponse struct {
 	Result  interface{}
 	Err     error
+}
+
+func (dc *DataContext) GetLogger() logger.Logger {
+	return dc.cfg.Logger
+}
+
+func (dc *DataContext) Table(databinding string) *table.TableContext {
+	ds, ok := dc.cfg.Sources[databinding]
+	if !ok {
+		return nil  //, fmt.Errorf("data binding named %s not found", databinding)
+	}
+
+	return table.NewTableContext(dc.cfg, ds)
 }
 
 func (dc *DataContext) Raw(databinding string) (interface{}, error) {

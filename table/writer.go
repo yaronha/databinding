@@ -4,19 +4,21 @@ import (
 	"github.com/yaronha/databinding/requests"
 	"github.com/yaronha/databinding/datactx"
 	"fmt"
+	"github.com/yaronha/databinding/datasources"
 )
 
-func NewWriter(dc *datactx.DataContextCfg, path string) *TableWriter {
-	newWriter := TableWriter{dc: dc, path:path}
+func NewWriter(dc *datactx.DataContextCfg, datasource  datasources.DataSource, path string) *TableWriter {
+	newWriter := TableWriter{dc: dc, datasource: datasource, path:path}
 	newWriter.req = &requests.WriteRequest{}
 	return &newWriter
 }
 
 type TableWriter struct {
-	dc         *datactx.DataContextCfg
-	req        *requests.WriteRequest
-	path       string
-	executed   bool
+	dc          *datactx.DataContextCfg
+	datasource  datasources.DataSource
+	req         *requests.WriteRequest
+	path        string
+	executed    bool
 }
 
 func (tw *TableWriter) Format(format string) *TableWriter {
@@ -51,17 +53,10 @@ func (tw *TableWriter) DoAsync(wg int) (requests.ExecResponse, error) {
 	}
 	tw.executed = true
 
-
-	// TODO: verify that the data source support Table & Write methods
-	ds, fullpath, err := tw.dc.GetSource(tw.path)
-	if err != nil {
-		return nil, err
-	}
-
-	tw.req.Fullpath = fullpath
+	tw.req.Fullpath = tw.dc.GetFullpath(tw.datasource, tw.path)
 	tw.req.WaitGroup = wg
-	tw.dc.Logger.DebugWith("Table Write", "req", tw.req, "ds", ds.GetConfig())
-	resp, err := ds.TableWriteReq(tw.req)
+	tw.dc.Logger.DebugWith("Table Write", "req", tw.req, "ds", tw.datasource.GetConfig())
+	resp, err := tw.datasource.TableWriteReq(tw.req)
 	if wg !=0 && err == nil {
 		tw.dc.WaitGroups[wg] = append(tw.dc.WaitGroups[wg], resp)
 	}

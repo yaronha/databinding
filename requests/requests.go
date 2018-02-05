@@ -103,11 +103,11 @@ func (rs *AbstractReadResponse) Scannn(fields string, dest ...interface{}) error
 		p := dest[idx]
 		switch p.(type) {
 		case *[]byte:
-			*p.(*[]byte) = asBytes(field)
+			*p.(*[]byte) = AsBytes(field)
 		case *string:
-			*p.(*string) = asString(field)
+			*p.(*string) = AsString(field)
 		case *int:
-			*p.(*int) = asInt(field)
+			*p.(*int) = AsInt(field)
 
 		}
 
@@ -141,18 +141,18 @@ type AbstractTableField struct {
 }
 
 func (f *AbstractTableField) AsInt() int {
-	return asInt(f.Val)
+	return AsInt(f.Val)
 }
 
 func (f *AbstractTableField) AsStr() string {
-	return asString(f.Val)
+	return AsString(f.Val)
 }
 
 func (f *AbstractTableField) AsBytes() []byte {
 	if f.Val == nil {
 		return nil
 	}
-	return asBytes(f.Val)
+	return AsBytes(f.Val)
 }
 
 func (f *AbstractTableField) AsInterface() interface{} {
@@ -172,25 +172,13 @@ func (f *AbstractTableField) AsFloat64Array() []float64 {
 }
 
 
-
-func asInt(num interface{}) int {
+func AsInt(num interface{}) int {
 	val, ok := num.(int)
 	if ok { return val }
 	return 0
 }
 
-func AsString(val interface{}) string {
-	switch val.(type) {
-	case string:
-		return val.(string)
-	case int:
-		return strconv.Itoa(val.(int))
-	}
-	return ""
-}
-
-
-func asString(src interface{}) string {
+func AsString(src interface{}) string {
 	switch v := src.(type) {
 	case string:
 		return v
@@ -225,7 +213,7 @@ func asString(src interface{}) string {
 	return fmt.Sprintf("%v", src)
 }
 
-func asBytes(src interface{}) []byte {
+func AsBytes(src interface{}) []byte {
 	switch v := src.(type) {
 	case []byte:
 		return v
@@ -233,7 +221,7 @@ func asBytes(src interface{}) []byte {
 		return []byte(v)
 	}
 
-	return []byte(asString(src))
+	return []byte(AsString(src))
 }
 
 

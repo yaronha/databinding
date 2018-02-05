@@ -25,6 +25,10 @@ func (ds *AbstractDataSource) GetRaw() (interface{}, error) {
 	return nil, fmt.Errorf("Datasource does not support raw interface")
 }
 
+func (ds *AbstractDataSource) GetConfig() *DataSourceCfg {
+	return ds.Config
+}
+
 func (ds *AbstractDataSource) TableReadReq(req *requests.ReadRequest) (requests.ReadResponse, error) {
 	return nil, fmt.Errorf("Datasource does not support TableRead interface")
 }
@@ -36,13 +40,14 @@ func (ds *AbstractDataSource) TableWriteReq(req *requests.WriteRequest) (request
 
 
 type DataSourceCfg struct {
-	Class     string            `json:"class"`
-	URL       string            `json:"url"`
-	Resource  string            `json:"resource,omitempty"`
-	BasePath  string            `json:"path,omitempty"`
-	Query     string            `json:"query,omitempty"`
-	Secret    string            `json:"secret,omitempty"`
-	Options   map[string]string `json:"options,omitempty"`
+	FromContext  interface{}       `json:"fromContext,omitempty"`
+	Class        string            `json:"class"`
+	URL          string            `json:"url"`
+	Resource     string            `json:"resource,omitempty"`
+	BasePath     string            `json:"path,omitempty"`
+	Query        string            `json:"query,omitempty"`
+	Secret       string            `json:"secret,omitempty"`
+	Options      map[string]string `json:"options,omitempty"`
 }
 
 type Creator interface {

@@ -23,6 +23,10 @@ type SecretProvider interface {
 	GetSecrets(name, requieredBy string) map[string][]byte
 }
 
+func (dc *DataContextCfg) GetFullpath(ds datasources.DataSource, path string) string {
+	return ds.GetConfig().BasePath + path
+}
+
 // Take the path string and returns the data binding & path (with basePath)
 func (dc *DataContextCfg) GetSource(path string) (datasources.DataSource, string, error) {
 	if len(dc.Sources) == 0 {

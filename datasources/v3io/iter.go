@@ -28,6 +28,22 @@ func (ic *BaseV3ioItemsCursor) GetField(name string) requests.TableFieldTypes {
 }
 
 func (ic *BaseV3ioItemsCursor) Scan(fields []string, dest ...interface{}) error {
+
+	for idx, name := range fields {
+		field, ok := (*ic.currentItem)[name]
+		if !ok {
+			field = ""
+		}
+		p := dest[idx]
+		switch p.(type) {
+		case *[]byte:
+			*p.(*[]byte) = requests.AsBytes(field)
+		case *string:
+			*p.(*string) = requests.AsString(field)
+		case *int:
+			*p.(*int) = requests.AsInt(field)
+		}
+	}
 	return nil
 }
 
